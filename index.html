@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#7a9c49">
+    <meta name="description" content="Générateur de plans de cours pour le personnel enseignant de l'UQAC.">
+    <title>Générateur de plans de cours | UQAC</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="vendor/mammoth.browser.min.js" defer></script>
+    <script src="vendor/pdf.min.js" defer></script>
+    <script src="app.js" defer></script>
+    <script src="document-import.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Passer au contenu principal</a>
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="Générateur de plans de cours UQAC, accueil">
+        <span class="brand-mark" aria-hidden="true">UQAC</span>
+        <span class="brand-name">Générateur de plans de cours</span>
+      </a>
+      <div class="topbar-actions">
+        <span class="save-status" id="saveStatus" role="status" aria-live="polite">Sauvegarde locale activée</span>
+        <button class="button button-quiet" id="resetButton" type="button">Effacer le brouillon</button>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="intro">
+        <div>
+          <p class="eyebrow">Université du Québec à Chicoutimi</p>
+          <h1>Votre plan de cours,<br><span>clair et prêt à partager.</span></h1>
+          <p class="intro-copy">Créez un plan de cours ou importez un ancien document pour l’actualiser. Le formulaire, l’aperçu et le PDF restent dans ce navigateur.</p>
+        </div>
+        <div class="intro-badge" aria-label="Les seize sections du gabarit UQAC sont intégrées">
+          <span class="badge-number">01—16</span>
+          <span>sections du gabarit</span>
+        </div>
+      </section>
+
+      <section class="path-picker" id="startPanel" aria-labelledby="startHeading">
+        <p class="eyebrow">Commencer</p>
+        <h2 id="startHeading">Comment souhaitez-vous préparer votre plan?</h2>
+        <p>Créez un plan vierge ou importez un ancien document pour en récupérer les éléments pédagogiques. L’analyse se fait entièrement dans ce navigateur.</p>
+        <div class="path-options">
+          <article class="path-card">
+            <h3>Créer un nouveau plan</h3>
+            <p>Remplir les champs du gabarit 2026–2027 et profiter de l’aperçu et de l’export PDF.</p>
+            <button class="button button-primary" id="chooseNewPlan" type="button">Créer un nouveau plan</button>
+          </article>
+          <article class="path-card">
+            <h3>Importer et actualiser</h3>
+            <p>Analyser un ancien plan Word ou PDF, vérifier les correspondances, puis transférer les contenus utiles.</p>
+            <button class="button button-primary" id="chooseImport" type="button">Importer un ancien plan</button>
+          </article>
+        </div>
+        <button class="button button-quiet resume-draft" id="resumeDraftButton" type="button" hidden>Reprendre le brouillon enregistré</button>
+        <p class="privacy-note">Les fichiers ne sont pas téléversés. Les textes institutionnels du nouveau gabarit restent ceux de l’application; ils ne sont pas remplacés par le contenu importé.</p>
+      </section>
+
+      <section class="import-panel" id="importPanel" aria-labelledby="importHeading" hidden>
+        <div class="import-heading-row">
+          <div><p class="eyebrow">Actualisation locale</p><h2 id="importHeading">Importer un ancien plan</h2></div>
+          <button class="button button-quiet button-light" id="backToStart" type="button">Retour au choix</button>
+        </div>
+        <p class="import-description">Formats acceptés : Word <code>.docx</code> et PDF contenant du texte. Les PDF numérisés ne sont pas soumis à l’OCR : si aucune couche de texte n’est lisible, l’application vous le signalera et vous pourrez compléter le plan manuellement.</p>
+        <label class="drop-zone" id="dropZone" for="importFileInput">
+          <strong>Choisir ou déposer un ancien plan</strong>
+          <span>DOCX ou PDF — maximum 25 Mo</span>
+          <input id="importFileInput" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.pdf,application/pdf">
+        </label>
+        <p class="import-status" id="importStatus" role="status" aria-live="polite"></p>
+        <section class="import-report" id="importReport" aria-labelledby="importReportHeading" hidden>
+          <h3 id="importReportHeading" tabindex="-1">Résultat de l’analyse</h3>
+          <div id="importReportContent"></div>
+          <div class="import-actions">
+            <button class="button button-primary" id="applyImportButton" type="button">Transférer les informations récupérées</button>
+            <button class="button button-add" id="cancelImportButton" type="button">Choisir un autre fichier</button>
+          </div>
+        </section>
+      </section>
+
+      <div class="app-grid" id="appWorkspace" hidden>
+        <section class="editor-panel" aria-labelledby="editorHeading">
+          <div class="import-applied-notice" id="importAppliedNotice" role="status" hidden>
+            <span id="importAppliedText"></span>
+            <button class="button button-add" id="reviewImportButton" type="button">Revoir le rapport d’importation</button>
+          </div>
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">Éditeur</p>
+              <h2 id="editorHeading">Construire le plan</h2>
+            </div>
+            <span class="progress-label" id="progressLabel">0 / 4 sections</span>
+          </div>
+          <div class="progress-track" aria-hidden="true"><span id="progressBar"></span></div>
+
+          <section class="sections-nav" aria-labelledby="sectionsHeading">
+            <div class="subheading-row">
+              <h3 id="sectionsHeading">Sections du plan</h3>
+              <span>16 au total</span>
+            </div>
+            <p class="section-help">Les sections obligatoires sont toujours incluses. Activez les sections facultatives à votre convenance.</p>
+            <p class="synoptic-link"><a href="#synoptic">Aller à la vue synoptique du cours</a></p>
+            <div class="section-list" id="sectionList"></div>
+          </section>
+
+          <form id="courseForm" novalidate>
+            <section class="form-section" id="synoptic" aria-labelledby="synopticTitle">
+              <div class="form-section-heading"><span class="section-index">↗</span><div><h3 id="synopticTitle">Vue synoptique du cours</h3><span class="section-kind">Tableau de synthèse du gabarit</span></div></div>
+              <p class="section-description">Cette vue résume les objectifs, contenus, stratégies d’enseignement et évaluations du cours.</p>
+              <p class="synoptic-objective">Objectif général : <span id="synopticObjective">À compléter dans la section 3.</span></p>
+              <div class="table-editor" data-table="synoptic"></div>
+              <button class="button button-add" type="button" data-add-row="synoptic">＋ Ajouter un objectif à la synthèse</button>
+              <label class="field"><span>Évaluation finale du cours</span><textarea name="finalAssessment" rows="3" placeholder="Décrivez l’épreuve finale et sa pondération."></textarea></label>
+            </section>
+
+            <section class="form-section" id="section-1" aria-labelledby="sectionTitle-1">
+              <div class="form-section-heading">
+                <span class="section-index">01</span>
+                <div><h3 id="sectionTitle-1">Présentation de la personne enseignante</h3><span class="section-kind">Facultative</span></div>
+              </div>
+              <p class="section-description">Présentez brièvement votre parcours, votre intérêt pour le cours et votre approche. Une courte vidéo sur Moodle peut compléter cette présentation.</p>
+              <div class="field-grid">
+                <label class="field full"><span>Nom et prénom <span class="required-mark" aria-label="obligatoire">*</span></span><input name="teacherName" autocomplete="name" required placeholder="Ex. Marie Tremblay"></label>
+                <label class="field full"><span>Présentation</span><textarea name="teacherBio" rows="4" placeholder="Votre parcours, votre intérêt pour le cours et les objectifs…"></textarea></label>
+                <label class="field"><span>Local ou lieu de rendez-vous</span><input name="teacherOffice" placeholder="Ex. P2-1230 ou rencontre en ligne"></label>
+                <label class="field"><span>Disponibilités <span class="required-mark" aria-label="obligatoire">*</span></span><input name="teacherAvailability" required placeholder="Ex. mardi, sur rendez-vous"></label>
+                <label class="field full"><span>Adresse courriel <span class="required-mark" aria-label="obligatoire">*</span></span><input name="teacherEmail" type="email" autocomplete="email" required placeholder="prenom.nom@uqac.ca"></label>
+              </div>
+            </section>
+
+            <section class="form-section" id="section-2" aria-labelledby="sectionTitle-2">
+              <div class="form-section-heading">
+                <span class="section-index">02</span>
+                <div><h3 id="sectionTitle-2">Identification du cours</h3><span class="section-kind required">Obligatoire</span></div>
+              </div>
+              <p class="section-description">Indiquez le statut du cours dans le programme, ses liens avec les autres cours et ses préalables, s’il y a lieu.</p>
+              <div class="field-grid">
+                <label class="field"><span>Module ou unité <span class="required-mark" aria-label="obligatoire">*</span></span><input name="module" required placeholder="Ex. Module des sciences humaines"></label>
+                <label class="field"><span>Département <span class="required-mark" aria-label="obligatoire">*</span></span><input name="department" required placeholder="Nom du département"></label>
+                <label class="field full"><span>Nom du cours <span class="required-mark" aria-label="obligatoire">*</span></span><input name="courseName" required placeholder="Nom officiel du cours"></label>
+                <label class="field"><span>Sigle <span class="required-mark" aria-label="obligatoire">*</span></span><input name="courseCode" required placeholder="Ex. 8INF123"></label>
+                <label class="field"><span>Numéro du groupe <span class="required-mark" aria-label="obligatoire">*</span></span><input name="group" required placeholder="Ex. 01"></label>
+                <label class="field"><span>Trimestre <span class="required-mark" aria-label="obligatoire">*</span></span><input name="term" required placeholder="Ex. Automne 2026"></label>
+                <label class="field"><span>Local ou lien Zoom <span class="required-mark" aria-label="obligatoire">*</span></span><input name="location" required placeholder="Local, lien ou environnement"></label>
+                <label class="field"><span>Statut dans le programme <span class="required-mark" aria-label="obligatoire">*</span></span>
+                  <select name="courseStatus" required><option value="">Choisir…</option><option>Obligatoire</option><option>Optionnel</option><option>Obligatoire dans un programme, optionnel dans un autre</option></select>
+                </label>
+                <label class="field"><span>Cycle de formation <span class="required-mark" aria-label="obligatoire">*</span></span>
+                  <select name="studyCycle" required><option value="">Choisir…</option><option>1er cycle</option><option>2e cycle</option><option>3e cycle</option><option>Autre</option></select>
+                </label>
+                <label class="field full" data-condition="courseStatus" data-condition-value="Obligatoire dans un programme, optionnel dans un autre" hidden><span>Programmes concernés et statut du cours pour chacun <span class="required-mark">*</span></span><textarea name="programStatusDetails" rows="3" placeholder="Précisez le statut du cours dans chaque programme."></textarea></label>
+                <label class="field full"><span>Liens avec les autres cours du programme <span class="required-mark" aria-label="obligatoire">*</span></span><textarea name="courseLinks" required rows="3" placeholder="Situez la place du cours dans le cheminement; indiquez « Aucun » si nécessaire."></textarea></label>
+                <label class="field full"><span>Cours préalables</span><input name="prerequisites" placeholder="Sigles des cours préalables, s’il y a lieu"></label>
+              </div>
+            </section>
+
+            <section class="form-section" id="section-3" aria-labelledby="sectionTitle-3">
+              <div class="form-section-heading">
+                <span class="section-index">03</span>
+                <div><h3 id="sectionTitle-3">Description du cours</h3><span class="section-kind required">Obligatoire</span></div>
+              </div>
+              <p class="section-description">Transcrivez intégralement l’objectif général du descriptif officiel. Pour les objectifs spécifiques, transcrivez ceux du descriptif s’ils existent; sinon, formulez-les avec un verbe d’action observable et mesurable, selon la structure action + sujet + qualité (maximum cinq par objectif général).</p>
+              <div class="field-grid">
+                <label class="field full"><span>Objectif général ou compétence attendue <span class="required-mark" aria-label="obligatoire">*</span></span><textarea name="generalObjective" required rows="4" placeholder="Libellé intégral tiré du descriptif du cours sur le site de l’UQAC."></textarea></label>
+                <div class="field full">
+                  <div class="field-label-row"><span>Objectifs spécifiques <span class="required-mark" aria-label="obligatoire">*</span></span><span class="field-hint">Maximum 5</span></div>
+                  <div class="repeatable-list" id="objectivesList"></div>
+                  <button class="button button-add" id="addObjective" type="button">＋ Ajouter un objectif</button>
+                </div>
+                <label class="field full"><span>Compétences complémentaires <span class="field-hint">(facultatif)</span></span><textarea name="complementarySkills" rows="3" placeholder="Ex. outils collaboratifs, citation des sources, travail en équipe…"></textarea></label>
+              </div>
+            </section>
+
+            <section class="form-section" id="section-4" aria-labelledby="sectionTitle-4">
+              <div class="form-section-heading">
+                <span class="section-index">04</span>
+                <div><h3 id="sectionTitle-4">Formule pédagogique</h3><span class="section-kind required">Obligatoire</span></div>
+              </div>
+              <p class="section-description">Précisez les modalités d’enseignement et la charge de travail attendue. À titre indicatif, l’UQAC estime environ 45 heures de formation par crédit.</p>
+              <div class="field-grid">
+                <label class="field"><span>Formule ou modalité d’enseignement <span class="required-mark" aria-label="obligatoire">*</span></span>
+                  <select name="teachingFormat" required><option value="">Choisir…</option><option>En présence</option><option>À distance</option><option>Hybride</option><option>Comodal</option><option>Autre</option></select>
+                </label>
+                <label class="field"><span>Nombre de crédits <span class="required-mark" aria-label="obligatoire">*</span></span><input name="credits" type="number" min="1" max="15" step="1" value="3" required></label>
+                <label class="field"><span>Activités d’enseignement (heures)</span><input name="teachingHours" type="number" min="0" step="1" value="45"></label>
+                <label class="field"><span>Travail personnel (heures)</span><input name="personalHours" type="number" min="0" step="1" value="90"></label>
+                <div class="workload-total" aria-live="polite"><span>Charge de travail totale estimée</span><strong id="workloadTotal">135 heures</strong></div>
+                <p class="field-note full">La charge totale est calculée à partir des heures d’enseignement et de travail personnel. Vous pouvez ajuster ces estimations selon votre cours.</p>
+              </div>
+            </section>
+
+            <section class="form-section" id="section-5" aria-labelledby="sectionTitle-5">
+              <div class="form-section-heading"><span class="section-index">05</span><div><h3 id="sectionTitle-5">Activités d’enseignement et d’apprentissage</h3><span class="section-kind required">Obligatoire</span></div></div>
+              <p class="section-description">Décrivez les principales activités d’apprentissage. Privilégiez la participation active; elles doivent soutenir l’atteinte des objectifs et la charge de travail du cours.</p>
+              <label class="field"><span>Activités proposées <span class="required-mark" aria-label="obligatoire">*</span></span><textarea name="learningActivities" required rows="5" placeholder="Exposés, discussions, travaux d’équipe, études de cas, lectures préparatoires, activités en ligne…"></textarea></label>
+            </section>
+
+            <section class="form-section" id="section-6" aria-labelledby="sectionTitle-6">
+              <div class="form-section-heading"><span class="section-index">06</span><div><h3 id="sectionTitle-6">Modalités de communications et d’encadrement</h3><span class="section-kind">Facultative</span></div></div>
+              <p class="section-description">Cette section facultative permet de décrire librement les communications et l’encadrement prévus pour le cours.</p>
+              <p class="field-note communication-writing-aid"><strong>Aide à la rédaction tirée du guide UQAC.</strong> Précisez les moyens par lesquels vous communiquerez avec les personnes étudiantes et ceux qu’elles pourront utiliser pour vous joindre (courriel, téléphone ou autres). Indiquez, si possible, vos périodes de disponibilité et les délais de réponse. Pour un cours à distance, décrivez les modalités d’encadrement prévues (forum, courriel, rencontres individuelles ou de groupe, avec ou sans rendez-vous). Les disponibilités peuvent aussi être détaillées et mises à jour sur la page d’accueil du cours Moodle. Adaptez ces indications à votre cours.</p>
+              <label class="field">
+                <span>Modalités de communication et d’encadrement <span class="field-hint">(facultatif)</span></span>
+                <textarea name="communicationModalities" rows="9" placeholder="Décrivez les moyens de communication, les délais de réponse et les modalités d’encadrement."></textarea>
+              </label>
+              <button class="button button-add" id="useCommunicationTemplate" type="button">Utiliser un modèle de rédaction</button>
+              <p class="field-note" id="communicationTemplateStatus" role="status" aria-live="polite"></p>
+            </section>
+
+            <section class="form-section" id="section-7" aria-labelledby="sectionTitle-7">
+              <div class="form-section-heading"><span class="section-index">07</span><div><h3 id="sectionTitle-7">Dates importantes</h3><span class="section-kind required">Obligatoire</span></div></div>
+              <p class="section-description">Toutes les dates sont à vérifier dans le calendrier universitaire officiel. Les règles ci-dessous sont reproduites du guide UQAC.</p>
+              <div class="field-grid">
+                <label class="field"><span>Session <span class="required-mark">*</span></span><input name="importantDatesTerm" required placeholder="Ex. Automne 2026"></label>
+                <label class="field"><span>Durée du cours <span class="required-mark">*</span></span><select name="courseSchedule" required><option value="">Choisir…</option><option>Cours sur toute la session</option><option>Période réduite ou horaire condensé</option></select></label>
+                <label class="field"><span>Date de début du cours <span class="required-mark">*</span></span><input name="courseStart" type="date" required></label>
+                <label class="field"><span>Date limite d’annulation avec remboursement <span class="required-mark">*</span></span><input name="cancelDeadline" type="date" required></label>
+                <label class="field"><span>Date limite d’abandon sans mention d’échec et sans remboursement <span class="required-mark">*</span></span><input name="withdrawDeadline" type="date" required></label>
+                <label class="field"><span>Date de fin du cours <span class="required-mark">*</span></span><input name="courseEnd" type="date" required></label>
+                <label class="field"><span>Fin du trimestre <span class="required-mark">*</span></span><input name="termEnd" type="date" required></label>
+              </div>
+              <label class="field" data-condition="courseSchedule" data-condition-value="Période réduite ou horaire condensé" hidden><span>Précisions sur les dates ajustées au calendrier du cours <span class="required-mark">*</span></span><textarea name="dateAdjustments" rows="3" placeholder="Indiquez les dates et échéances adaptées à la durée du cours."></textarea></label>
+              <div class="official-copy">
+                <p>Annulation avec remboursement : avant la 7e heure de cours (3 crédits), la 5e heure (2 crédits) ou la 3e heure (1 crédit).</p>
+                <p>Abandon sans mention d’échec et sans remboursement : avant la 28e heure (3 crédits), la 19e heure (2 crédits) ou la 10e heure (1 crédit). Un minimum de 20 % de la note totale doit être inscrit sur l’Intranet avant cette date. Pour un cours intensif ou à horaire atypique, cette note doit être obtenue avant la 10e séance.</p>
+                <p>Si le cours ne couvre pas toute la session (par exemple, moins de trois crédits ou horaire condensé), ajustez les dates du calendrier universitaire à sa durée réelle.</p>
+              </div>
+              <label class="check-field"><input type="checkbox" name="intensiveCourse" value="yes"><span>Cours intensif ou à horaire atypique (vérifier le seuil de la 10e séance)</span></label>
+            </section>
+
+            <section class="form-section" id="section-8" aria-labelledby="sectionTitle-8">
+              <div class="form-section-heading"><span class="section-index">08</span><div><h3 id="sectionTitle-8">Calendrier du cours</h3><span class="section-kind required">Obligatoire</span></div></div>
+              <p class="section-description">Pour chaque séance, indiquez les contenus, activités d’apprentissage, tâches à réaliser, modalités et dates de remise ou d’évaluation.</p>
+              <div class="table-editor" data-table="calendar"></div>
+              <button class="button button-add" type="button" data-add-row="calendar">＋ Ajouter une séance</button>
+              <p class="field-note">Les modalités peuvent être en présence, en ligne, comodales, synchrones ou asynchrones. Le nombre de colonnes peut être adapté aux besoins du cours.</p>
+            </section>
+
+            <section class="form-section" id="section-9" aria-labelledby="sectionTitle-9">
+              <div class="form-section-heading"><span class="section-index">09</span><div><h3 id="sectionTitle-9">Utilisation de l’intelligence artificielle (IAg) dans le cadre du cours</h3><span class="section-kind">Facultative</span></div></div>
+              <div class="official-copy">
+                <p>En accord avec les principes directeurs en matière d’utilisation de l’intelligence artificielle de l’UQAC, il revient à chaque personne enseignante de permettre ou non l’usage des IAg dans son cours. L’UQAC propose un outil de déclaration et d’autorisation des niveaux d’utilisation de l’IAg, comprenant des pictogrammes permettant à la personne enseignante de préciser le niveau autorisé dans un travail et à la personne étudiante de déclarer son utilisation.</p>
+                <p><strong>Balises de réflexion</strong></p>
+                <ul>
+                  <li>Est-ce que les outils d’IAg contribuent favorablement à l’atteinte des objectifs d’apprentissage du cours?</li>
+                  <li>Permettent-ils le développement de l’esprit critique et de l’autonomie des personnes étudiantes?</li>
+                  <li>Dans le cadre de quels travaux ou évaluations leur utilisation est-elle permise ou interdite?</li>
+                  <li>Les modalités d’utilisation sont-elles clairement indiquées dans les consignes des travaux et des évaluations?</li>
+                  <li>De quelle façon les personnes étudiantes doivent-elles déclarer l’utilisation de l’IAg dans leurs travaux?</li>
+                </ul>
+                <p>Ces balises s’inscrivent dans les principes directeurs sur l’utilisation responsable de l’intelligence artificielle générative adoptés par le réseau de l’Université du Québec.</p>
+                <p>Le matériel pédagogique produit par les personnes enseignantes est protégé par le droit d’auteur. Dans le contexte de l’utilisation croissante des plateformes d’intelligence artificielle, il peut être pertinent de préciser si les personnes étudiantes sont autorisées à soumettre les notes de cours ou les présentations à ces outils (reformulation, résumé, génération d’exercices, etc.).</p>
+                <p>Lorsque l’utilisation de l’IAg est permise, il est recommandé d’exiger que les personnes étudiantes déclarent son utilisation et respectent les normes de citation en vigueur. Afin de les guider, vous pouvez vous référer aux normes de rédaction du département. Une capsule vidéo de sensibilisation aux enjeux de l’IAg est mise à disposition.</p>
+              </div>
+              <div class="table-editor" data-table="iaUses"></div>
+              <button class="button button-add" type="button" data-add-row="iaUses">＋ Ajouter une activité ou un travail</button>
+              <label class="field"><span>Balises générales et modalités de déclaration</span><textarea name="iagPolicy" rows="4" placeholder="Usages permis, encadrés ou interdits et règles de citation."></textarea></label>
+            </section>
+
+            <section class="form-section" id="section-10" aria-labelledby="sectionTitle-10">
+              <div class="form-section-heading"><span class="section-index">10</span><div><h3 id="sectionTitle-10">Évaluations</h3><span class="section-kind required">Obligatoire</span></div></div>
+              <p class="section-description">Décrivez les évaluations, objectifs ou contenus ciblés, pondérations (équipe ou individuelle), dates, critères s’il y a lieu, et niveaux d’IAg permis.</p>
+              <div class="table-editor" data-table="evaluations"></div>
+              <button class="button button-add" type="button" data-add-row="evaluations">＋ Ajouter une évaluation</button>
+              <div class="evaluation-total" aria-live="polite"><span>Total des pondérations</span><strong id="evaluationTotal">0 %</strong><span id="evaluationValidation" class="validation-message">Ajoutez des évaluations totalisant 100 %.</span></div>
+              <div class="official-copy">
+                <p>Pour tous les types de cours, une évaluation de mi-trimestre doit permettre d’inscrire au minimum 20 % de la note finale avant la date limite d’abandon. Pour un cours intensif ou à horaire atypique, vérifiez l’échéance de la 10e séance.</p>
+                <p>Pour chaque évaluation, les consignes écrites doivent préciser les attentes et critères, ainsi que les usages d’IAg permis ou interdits et la façon de citer les outils.</p>
+              </div>
+            </section>
+
+            <section class="form-section" id="section-11" aria-labelledby="sectionTitle-11">
+              <div class="form-section-heading"><span class="section-index">11</span><div><h3 id="sectionTitle-11">Système de notation</h3><span class="section-kind">Facultative</span></div></div>
+              <p class="section-description">L’échelle ci-dessous reprend l’exemple du gabarit 2026–2027; elle est à valider avec le programme ou le département. La note de passage doit être indiquée.</p>
+              <div class="table-editor" data-table="grades"></div>
+              <button class="button button-add" type="button" data-add-row="grades">＋ Ajouter une cote</button>
+              <label class="field"><span>Note de passage du cours <span class="required-mark">*</span></span><input name="passingGrade" placeholder="Ex. C (70 %)"></label>
+            </section>
+
+            <section class="form-section" id="section-12" aria-labelledby="sectionTitle-12">
+              <div class="form-section-heading"><span class="section-index">12</span><div><h3 id="sectionTitle-12">Droit d’auteur et propriété intellectuelle du matériel</h3><span class="section-kind">Facultative</span></div></div>
+              <div class="official-copy">
+                <p>L’ensemble du contenu rendu disponible dans le cadre de ce cours est protégé par la Loi sur le droit d’auteur et la Politique relative aux droits d’auteur de l’UQAC. Il est destiné à votre usage dans le cadre de votre formation universitaire et ne doit pas être utilisé à d’autres fins. Vous pouvez le consulter et, lorsque disponible au téléchargement, en faire une copie uniquement pour votre usage personnel.</p>
+                <p>Vous ne pouvez pas reproduire, publier, transmettre, diffuser, distribuer, adapter ou modifier ce contenu, en tout ou en partie, sans l’autorisation de la personne enseignante.</p>
+                <p>Conformément à la politique institutionnelle d’utilisation des technologies de l’information et des communications dans les salles de cours de l’UQAC, vous ne pouvez pas enregistrer (audio ou vidéo) ni diffuser une activité de cours sans l’autorisation préalable de la personne enseignante.</p>
+              </div>
+              <label class="check-field"><input type="checkbox" name="copibecUse" value="yes"><span>Je prévois distribuer des extraits de documents publiés en version imprimée ou sur Moodle.</span></label>
+              <p class="official-copy conditional-copy" data-condition="copibecUse" hidden>Déclarez cet usage conformément à l’entente Copibec sur le droit d’auteur et utilisez le formulaire de déclaration prévu à cet effet.</p>
+              <label class="field"><span>Précisions propres au cours (facultatif)</span><textarea name="copyrightNotes" rows="3"></textarea></label>
+            </section>
+
+            <section class="form-section" id="section-13" aria-labelledby="sectionTitle-13">
+              <div class="form-section-heading"><span class="section-index">13</span><div><h3 id="sectionTitle-13">Services offerts à l’UQAC</h3><span class="section-kind">Facultative</span></div></div>
+              <div class="official-copy">
+                <p>Conformément à la Politique sur les services personnels et collectifs offerts aux étudiants, les Services aux étudiants dispensent des services de soutien à l’apprentissage qui permettent des conditions favorables aux études, dont notamment de l’aide psychosociale; des services d’orientation scolaire et professionnelle, de l’aide au métier d’étudiant(e), de l’aide financière et des bourses d’excellence, de l’aide aux étudiant(e)s en situation de handicap et un milieu de vie stimulant. Vous trouverez tous les services offerts sur le site du Service aux étudiants.</p>
+                <p>Pour obtenir des services d’accompagnement (psychosocial, financier, technologique, etc.), il est possible de prendre rendez-vous en ligne.</p>
+                <p>Le site J’étudie à l’UQAC : outils d’apprentissage est une excellente source d’informations pour vous accompagner dans votre métier d’étudiante ou d’étudiant. Ce site comprend également les informations nécessaires à l’utilisation d’outils technologiques dans vos études.</p>
+                <p>Une ressource est aussi disponible pour vous accompagner dans l’appropriation des technologies éducatives (Moodle, Zoom, Google Workspace, Panopto, etc.) utilisées à l’UQAC. Cette ressource peut vous accompagner en fonction de vos besoins spécifiques.</p>
+                <p>Le site de la bibliothèque est la porte d’entrée vers l’ensemble des ressources documentaires et des services, tels que l’aide à la recherche documentaire, à l’évaluation des sources, à la rédaction d’une bibliographie, en plus du prêt d’équipements informatiques et de locaux. Le personnel de la bibliothèque pourra vous aider.</p>
+                <p>La Station SME regroupe des ressources, des outils et des pistes d’action pour soutenir la santé mentale étudiante. Une section est destinée aux personnes étudiantes et une autre au personnel des établissements d’enseignement.</p>
+                <p>Pour planifier une formation sur la recherche documentaire, la citation des sources ou l’utilisation des ressources documentaires : biblio@uqac.ca. Pour les ateliers de réussite universitaire : infosae@uqac.ca. Pour le soutien aux personnes étudiantes en situation de handicap, consultez le Guide à l’intention du personnel enseignant.</p>
+              </div>
+              <label class="field"><span>Ressources locales ou coordonnées à ajouter (facultatif)</span><textarea name="serviceNotes" rows="3"></textarea></label>
+            </section>
+
+            <section class="form-section" id="section-14" aria-labelledby="sectionTitle-14">
+              <div class="form-section-heading"><span class="section-index">14</span><div><h3 id="sectionTitle-14">Politique pour promouvoir la civilité, prévenir et contrer la discrimination, le harcèlement et la violence</h3><span class="section-kind">Facultative</span></div></div>
+              <div class="official-copy">
+                <p><strong>Principes généraux</strong></p>
+                <ul>
+                  <li>L’Université du Québec à Chicoutimi s’est dotée d’une politique afin de prévenir et de faire cesser le harcèlement et la violence.</li>
+                  <li>L’Université favorise un milieu propice à la dignité et à l’estime de tous les membres de la communauté.</li>
+                  <li>L’Université désavoue toute forme de harcèlement et de violence parce qu’ils constituent une atteinte aux droits de la personne.</li>
+                  <li>Tous les membres de la communauté universitaire ont droit à un milieu de travail et d’études exempt de harcèlement et de violence.</li>
+                </ul>
+                <p><strong>Application de la politique</strong></p>
+                <ul>
+                  <li>Toute forme de harcèlement et de violence est prohibée.</li>
+                  <li>Tout membre de la communauté universitaire a le devoir de s’approprier la politique et de saisir le Comité institutionnel contre le harcèlement et la violence, le responsable du Bureau de réception des plaintes ou les personnes-ressources de toute situation jugée en contravention de la politique.</li>
+                </ul>
+                <p>Pour en savoir plus, consultez le site du Bureau de prévention et d’intervention de l’UQAC.</p>
+              </div>
+            </section>
+
+            <section class="form-section" id="section-15" aria-labelledby="sectionTitle-15">
+              <div class="form-section-heading"><span class="section-index">15</span><div><h3 id="sectionTitle-15">Exigences de formation</h3><span class="section-kind required">Obligatoire</span></div></div>
+              <p class="section-description">Complétez les règles applicables conformément aux exigences du programme ou du département.</p>
+              <label class="field"><span>1. Qualité de la langue <span class="required-mark">*</span></span><textarea name="languageQuality" required rows="3" placeholder="Modalités d’évaluation et pénalité applicable en cas de déficiences linguistiques. Aucun seuil institutionnel de pénalité n’est imposé."></textarea></label>
+              <div class="official-copy"><p>Conformément à la politique institutionnelle relative à la valorisation du français, une attention particulière est portée à la qualité de la langue dans les communications écrites et orales réalisées dans le cadre du cours. Le plan de cours doit préciser les modalités d’évaluation de la qualité du français, incluant le pourcentage de pénalité applicable en cas de déficiences linguistiques, conformément aux exigences institutionnelles et aux orientations du programme ou du département. Il n’existe aucun seuil minimal ou maximal de pourcentage de pénalité.</p></div>
+              <label class="field"><span>Références des politiques et procédures (numéro et date à vérifier) <span class="required-mark">*</span></span><textarea name="policyReferences" required rows="2" placeholder="Indiquez les numéros et dates applicables aux politiques et procédures en vigueur."></textarea></label>
+              <div class="official-copy">
+                <p><strong>2. Plagiat et tricherie.</strong> Conformément à la politique institutionnelle, tout acte de plagiat ou de tricherie dans un cours peut entraîner l’annulation d’un élément d’évaluation ou l’échec du cours. Ces actes peuvent aussi entraîner la suspension ou l’exclusion de l’UQAC. Sont considérés comme plagiat ou tricherie : obtenir ou tenter d’obtenir les réponses de quelqu’un pendant un examen ou participer à un échange de réponses; utiliser totalement ou en partie un texte d’autrui en le faisant passer pour sien ou sans en indiquer la source; participer ou tenter de participer à une substitution de personnes lors d’un examen ou d’un travail évalué; posséder ou utiliser pendant un examen un document ou matériel non autorisé.</p>
+                <p>Il est important de sensibiliser les étudiantes et étudiants au fait que l’UQAC met à la disposition du personnel enseignant un logiciel de détection de similitudes afin de contrer le plagiat. Les bibliothécaires offrent également des formations sur la citation des sources et les bonnes pratiques en matière d’intégrité académique, dont « Citation et tentation » sur le Moodle étudiant.</p>
+                <p>Lorsque l’authenticité d’une production soulève des questions, la personne enseignante peut inviter la personne étudiante à présenter sa démarche, ses choix et sa compréhension des notions évaluées lors d’un entretien d’authenticité.</p>
+              </div>
+              <label class="check-field"><input type="checkbox" name="compilatioUse" value="yes"><span>Inclure la mention relative au logiciel Compilatio Magister+</span></label>
+              <div class="official-copy conditional-copy" data-condition="compilatioUse" hidden><p>L’Université du Québec à Chicoutimi met à la disposition des enseignant(e)s un logiciel de détection de similitudes, de reformulations avancées, de contenus traduits et de contenus générés par l’intelligence artificielle afin de contribuer à prévenir le plagiat et à favoriser l’intégrité académique. Ainsi, les travaux remis dans le cadre du présent cours peuvent être soumis à ce logiciel pour analyse. Les résultats produits constituent un outil d’aide à l’évaluation et doivent être interprétés par la personne enseignante avant toute conclusion relative à un manquement à l’intégrité académique.</p><p>Les travaux analysés au moyen du logiciel peuvent également être versés dans une bibliothèque de références et être conservés sous une forme anonymisée. Cette conservation a pour seule finalité de permettre la comparaison avec des travaux soumis ultérieurement afin de contribuer à la détection de similitudes et à la prévention du plagiat.</p><p>Les bibliothécaires peuvent vous aider dans l’interprétation des résultats obtenus au moyen du logiciel. Les résultats de détection constituent des indices et non des preuves; ils doivent être interprétés avec prudence et, en cas de doute, faire l’objet de vérifications complémentaires. Pour la détection de contenus générés par IA, les consignes doivent préciser les usages permis, encadrés ou interdits dans l’évaluation.</p></div>
+              <label class="field"><span>3. Règles de présentation des travaux <span class="required-mark">*</span></span><textarea name="presentationRules" required rows="3" placeholder="Guide méthodologique ou lien de référence à appliquer."></textarea></label>
+              <label class="field"><span>4. Retards dans la remise des travaux <span class="required-mark">*</span></span><textarea name="lateRules" required rows="3" placeholder="Pénalités et délai maximal de remise."></textarea></label>
+              <label class="check-field"><input type="checkbox" name="includeAbsenceRule" value="yes"><span>Inclure la règle institutionnelle suggérée pour les absences aux évaluations (facultatif)</span></label>
+              <div class="official-copy conditional-copy" data-condition="includeAbsenceRule" hidden>Une personne étudiante absente d’une évaluation se voit attribuer la note zéro. Exceptionnellement, en cas d’impossibilité absolue, imprévue et hors de son contrôle, elle doit communiquer avec la personne enseignante dans les meilleurs délais et avant l’évaluation lorsque possible; une entente de remise peut être convenue.</div>
+              <label class="field"><span>5. Utilisation des technologies de l’information et de la communication (TIC) <span class="required-mark">*</span></span>
+                <select name="ticLevel" required><option value="">Choisir le niveau permis…</option><option>Usage permis si non perturbant (par défaut)</option><option>Usage permis sous certaines conditions</option><option>Usage interdit</option></select>
+              </label>
+              <label class="field"><span>Modalités ou conditions d’utilisation des TIC</span><textarea name="ticConditions" rows="3"></textarea></label>
+              <div class="official-copy"><p><strong>Utilisation des IAg.</strong> L’utilisation de l’IAg d’un niveau supérieur à celui qui est permis est considérée comme une aide non autorisée et constitue une infraction. Cette dernière pourrait mener à l’application des sanctions prévues à la politique sur les infractions relatives aux études et sanctions. Lorsqu’elles utilisent l’IAg au niveau prévu, les personnes étudiantes doivent s’assurer de respecter les attentes en matière de citation et de référence. Une utilisation de l’IA générative qui n’a pas été mentionnée ou citée peut constituer une infraction et mener à ces sanctions.</p></div>
+            </section>
+
+            <section class="form-section" id="section-16" aria-labelledby="sectionTitle-16">
+              <div class="form-section-heading"><span class="section-index">16</span><div><h3 id="sectionTitle-16">Bibliographie</h3><span class="section-kind required">Obligatoire</span></div></div>
+              <p class="section-description">Assurez-vous que les références respectent les normes de présentation des travaux et sont à jour. La bibliothèque peut aider à vérifier la disponibilité et les liens.</p>
+              <div class="table-editor" data-table="bibliography"></div>
+              <button class="button button-add" type="button" data-add-row="bibliography">＋ Ajouter une référence</button>
+            </section>
+
+            <section class="preflight-section" id="preflight" aria-labelledby="preflightHeading">
+              <div class="form-section-heading"><span class="section-index">✓</span><div><h3 id="preflightHeading">Vérifications avant diffusion</h3><span class="section-kind">Liste de contrôle UQAC — ne figure pas dans le PDF du plan</span></div></div>
+              <p class="section-description">La grille de validation demande aussi ces vérifications manuelles avant la diffusion.</p>
+              <label class="check-field"><input type="checkbox" name="policyReferencesReviewed" value="yes" required><span>J’ai vérifié que les numéros et dates des politiques et procédures cités sont à jour.</span></label>
+              <label class="check-field"><input type="checkbox" name="coherenceReviewed" value="yes" required><span>J’ai vérifié la cohérence entre objectifs, activités, calendrier et évaluations.</span></label>
+              <label class="check-field" data-condition="hasBibliographyLinks" hidden><input type="checkbox" name="hyperlinksReviewed" value="yes"><span>J’ai testé les hyperliens dans un navigateur.</span></label>
+              <label class="field"><span>Exigence propre au département ou au programme — 9.1 (facultatif)</span><textarea name="departmentRequirement1" rows="2"></textarea></label>
+              <label class="field"><span>Exigence propre au département ou au programme — 9.2 (facultatif)</span><textarea name="departmentRequirement2" rows="2"></textarea></label>
+            </section>
+          </form>
+        </section>
+
+        <aside class="preview-panel" aria-labelledby="previewHeading">
+          <div class="preview-toolbar">
+            <div><p class="eyebrow">Aperçu en direct</p><h2 id="previewHeading">Votre document</h2></div>
+            <button class="button button-primary" id="exportButton" type="button"><span aria-hidden="true">↓</span> Exporter en PDF</button>
+          </div>
+          <p class="export-note">Dans la fenêtre d’impression, choisissez « Enregistrer au format PDF ».</p>
+          <div class="validation-summary" id="validationSummary" role="status" aria-live="polite" hidden></div>
+          <div class="preview-scroll">
+            <article id="printDocument" class="document-preview" aria-live="polite"></article>
+          </div>
+          <p class="preview-limit">Le PDF reprend les sections activées, les contenus institutionnels et les tableaux du formulaire.</p>
+        </aside>
+      </div>
+    </main>
+    <footer class="footer"><span>Générateur de plans de cours UQAC — démonstration non officielle, non avalisée par l’UQAC.</span><span>Vos données sont enregistrées uniquement dans ce navigateur.</span></footer>
+  </body>
+</html>
